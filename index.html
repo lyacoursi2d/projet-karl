@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Station Météo Bluetooth</title>
+  <style>
+    :root {
+      --main-bg: #f0f4f8;
+      --card-bg: #ffffff;
+      --primary-color: #0078D7;
+      --secondary-color: #005a9e;
+      --font-color: #333;
+      --border-radius: 10px;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--main-bg);
+      color: var(--font-color);
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100vh;
+      max-width: 400px;
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 10px 0;
+      text-align: center;
+    }
+
+    #connect-btn {
+      padding: 12px;
+      font-size: 16px;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      margin-bottom: 10px;
+      width: 100%;
+    }
+
+    .sensor-box {
+      background: var(--card-bg);
+      padding: 10px;
+      border-radius: var(--border-radius);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      margin-bottom: 8px;
+      text-align: center;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .sensor-title {
+      font-size: 16px;
+      margin-bottom: 5px;
+    }
+
+    .value {
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .unit-toggle {
+      font-size: 13px;
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--primary-color);
+      color: var(--primary-color);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .unit-toggle:hover {
+      background: var(--primary-color);
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Station KARL</h1>
+    <button id="connect-btn" onclick="connectBluetooth()">Connecter</button>
+
+    <div class="sensor-box">
+      <div class="sensor-title">💨 Vitesse du vent</div>
+      <div class="value" id="wind">--</div>
+      <button class="unit-toggle" onclick="toggleUnit('wind')">Changer en km/h</button>
+    </div>
+
+    <div class="sensor-box">
+      <div class="sensor-title">💧 Humidité</div>
+      <div class="value" id="humidity">--</div>
+    </div>
+
+    <div class="sensor-box">
+      <div class="sensor-title">🌡️ Température</div>
+      <div class="value" id="temperature">--</div>
+      <button class="unit-toggle" onclick="toggleUnit('temperature')">Changer en °F</button>
+    </div>
+
+    <div class="sensor-box">
+      <div class="sensor-title">🌪️ Pression</div>
+      <div class="value" id="pressure">--</div>
+      <button class="unit-toggle" onclick="toggleUnit('pressure')">Changer en bar</button>
+    </div>
+  </div>
+
+  <script>
+    let bluetoothDevice;
+
+    let dataState = {
+      wind: { value: 0, unit: 'm/s' },
+      humidity: { value: 0, unit: '%' },
+      temperature: { value: 0, unit: '°C' },
+      pressure: { value: 0, unit: 'hPa' }
+    };
+
+    async function connectBluetooth() {
+      try {
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ namePrefix: "HM" }],
+          optionalServices: [0xFFE0]
+        });
+
+        const server = await bluetoothDevice.gatt.connect();
+        const service = await server.getPrimaryService(0xFFE0);
+        const characteristic = await service.getCharacteristic(0xFFE1);
+
+        await characteristic.startNotifications();
+        characteristic.addEventListener('characteristicvaluechanged', handleData);
+
+        alert("Connexion réussie !");
+      } catch (error) {
+        console.error(error);
+        alert("Erreur de connexion Bluetooth.");
+      }
+    }
+
+    function handleData(event) {
+      const decoder = new TextDecoder('utf-8');
+      const raw = decoder.decode(event.target.value).trim();
+      const matches = raw.match(/P:([\d.]+)\s+H:([\d.]+)\s+T:([\d.]+)\s+W:([\d.]+)/);
+
+      if (matches && matches.length === 5) {
+        const [_, p, h, t, w] = matches;
+
+        dataState.pressure.value = parseFloat(p);
+        dataState.humidity.value = parseFloat(h);
+        dataState.temperature.value = parseFloat(t);
+        dataState.wind.value = parseFloat(w);
+
+        updateDisplay();
+      }
+    }
+
+    function updateDisplay() {
+      document.getElementById('pressure').textContent = formatPressure();
+      document.getElementById('humidity').textContent = `${dataState.humidity.value.toFixed(1)} %`;
+      document.getElementById('temperature').textContent = formatTemperature();
+      document.getElementById('wind').textContent = formatWind();
+    }
+
+    function toggleUnit(type) {
+      if (type === 'pressure') {
+        dataState.pressure.unit = dataState.pressure.unit === 'hPa' ? 'bar' : 'hPa';
+      } else if (type === 'temperature') {
+        dataState.temperature.unit = dataState.temperature.unit === '°C' ? '°F' : '°C';
+      } else if (type === 'wind') {
+        dataState.wind.unit = dataState.wind.unit === 'm/s' ? 'km/h' : 'm/s';
+      }
+      updateDisplay();
+    }
+
+    function formatPressure() {
+      return dataState.pressure.unit === 'bar'
+        ? (dataState.pressure.value / 1000).toFixed(3) + ' bar'
+        : dataState.pressure.value.toFixed(1) + ' hPa';
+    }
+
+    function formatTemperature() {
+      return dataState.temperature.unit === '°F'
+        ? ((dataState.temperature.value * 9 / 5) + 32).toFixed(1) + ' °F'
+        : dataState.temperature.value.toFixed(1) + ' °C';
+    }
+
+    function formatWind() {
+      return dataState.wind.unit === 'km/h'
+        ? (dataState.wind.value * 3.6).toFixed(1) + ' km/h'
+        : dataState.wind.value.toFixed(1) + ' m/s';
+    }
+  </script>
+</body>
+</html>
