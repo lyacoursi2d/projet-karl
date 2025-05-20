@@ -212,6 +212,20 @@
         ? (dataState.wind.value * 3.6).toFixed(1) + ' km/h'
         : dataState.wind.value.toFixed(1) + ' m/s';
     }
+
+    function openModal() {
+  document.getElementById('bluetoothModal').style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('bluetoothModal').style.display = 'none';
+}
+
+async function startBluetooth() {
+  closeModal();
+  await connectBluetooth();
+}
+
   </script>
   <!-- Fenêtre modale personnalisée -->
 <div id="bluetoothModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
